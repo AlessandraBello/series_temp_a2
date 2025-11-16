@@ -66,6 +66,31 @@ class TimeSeriesModel(ABC):
         """
         pass
     
+    def predict_sample(self, steps: int, n_samples: int = 100, **kwargs) -> np.ndarray:
+        """
+        Gera amostras de previsões para os próximos passos.
+        Importante para fazer a análise de incerteza e intervalos de confiança.
+        
+        Parameters
+        ----------
+        steps : int
+            Número de passos à frente para prever
+        n_samples : int
+            Número de amostras a serem geradas
+        **kwargs
+            Parâmetros adicionais específicos do modelo
+            
+        Returns
+        -------
+        np.ndarray
+            Array com as amostras de previsões, shape (n_samples, steps)
+        """
+        # Gerar amostras de previsões
+        predictions = []
+        for _ in range(n_samples):
+            predictions.append(self.predict(steps, **kwargs))
+        return np.array(predictions)
+    
     def get_params(self) -> Dict[str, Any]:
         """
         Retorna os parâmetros do modelo.
