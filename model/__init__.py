@@ -9,7 +9,8 @@ Estrutura:
 - base: Classes base abstratas que definem as interfaces
 - data_loader: Carregamento de dados
 - preprocessor: Transformações de séries temporais
-- model: Implementações de modelos
+- baseline_models: Implementações de modelos baseline
+- exp_smooth_models: Implementação dos modelos de Suavização Exponencial.
 - evaluator: Métricas de avaliação
 - diagnostics: Análise de resíduos e diagnósticos
 - visualizer: Visualização de séries e resultados
@@ -35,9 +36,17 @@ from .preprocessor import (
 )
 
 # Models
-from .model import (
+from .baseline_models import (
     NaiveForecast,
     MovingAverage,
+)
+
+# Exponential Smoothing Models 
+from .exp_smooth_models import (
+    SimpleExponentialSmoothingModel,
+    HoltLinearTrendModel,
+    HoltWintersAdditiveModel,
+    HoltWintersMultiplicativeModel
 )
 
 # Evaluation
