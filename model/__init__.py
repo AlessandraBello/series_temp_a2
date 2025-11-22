@@ -78,6 +78,11 @@ __all__ = [
     # Models
     'NaiveForecast',
     'MovingAverage',
+    # Exponential Smoothing Models
+    'SimpleExponentialSmoothingModel',
+    'HoltLinearTrendModel',
+    'HoltWintersAdditiveModel',
+    'HoltWintersMultiplicativeModel',
     # Evaluation
     'TimeSeriesEvaluator',
     # Diagnostics
