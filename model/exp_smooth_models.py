@@ -2,7 +2,7 @@
 Implementação de modelos de Suavização Exponencial.
 """
 
-from base import TimeSeriesModel
+from .base import TimeSeriesModel
 import numpy as np
 from typing import Dict, Any, Optional
 from statsmodels.tsa.holtwinters import ExponentialSmoothing, SimpleExpSmoothing, Holt
