@@ -68,6 +68,22 @@ class ETSModel(TimeSeriesModel):
         if not self.is_fitted:
             return {}
         return self._fitted_model.params
+    
+    def _post_fit(self, y):
+        """
+        Executa operações padronizadas após o ajuste de um modelo ETS.
+
+        Este método armazena os valores ajustados pelo modelo, calcula 
+        os resíduos e marca o objeto como ajustado.
+
+        Parameters
+        ----------
+        y : np.ndarray
+            Série temporal utilizada no ajuste do modelo.
+        """
+        self.fitted_values = self._fitted_model.fittedvalues
+        self.residuals = y - self.fitted_values
+        self.is_fitted = True
 
 
 class SimpleExponentialSmoothingModel(ETSModel):
@@ -123,9 +139,9 @@ class SimpleExponentialSmoothingModel(ETSModel):
             fit_params['smoothing_level'] = self.smoothing_level
         
         self._fitted_model = self._model.fit(**fit_params)
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = y - self.fitted_values
-        self.is_fitted = True
+        
+        # Operações após o ajuste do modelo
+        self._post_fit(y)
         
         return self
     
@@ -228,9 +244,9 @@ class HoltLinearTrendModel(ETSModel):
             fit_params['damping_trend'] = self.damping_trend
         
         self._fitted_model = self._model.fit(**fit_params)
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = y - self.fitted_values
-        self.is_fitted = True
+        
+        # Operações após o ajuste do modelo
+        self._post_fit(y)
         
         return self
     
@@ -348,9 +364,8 @@ class HoltWintersAdditiveModel(ETSModel):
             warnings.simplefilter("ignore")
             self._fitted_model = self._model.fit(**fit_params)
         
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = y - self.fitted_values
-        self.is_fitted = True
+        # Operações após o ajuste do modelo
+        self._post_fit(y)
         
         return self
     
@@ -468,9 +483,8 @@ class HoltWintersMultiplicativeModel(ETSModel):
             warnings.simplefilter("ignore")
             self._fitted_model = self._model.fit(**fit_params)
         
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = y - self.fitted_values
-        self.is_fitted = True
+        # Operações após o ajuste do modelo
+        self._post_fit(y)
         
         return self
     
