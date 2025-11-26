@@ -1,12 +1,6 @@
-"""
-Módulo para carregamento inicial de dados.
-Módulo feito para a padronização do projeto.
-"""
 import pandas as pd
 import numpy as np
-from typing import Optional, List, Union
-from .base import DataProcessor
-
+from typing import Optional
 
 class CSVDataLoader:
     """
