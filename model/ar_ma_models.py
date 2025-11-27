@@ -2,11 +2,12 @@
 ar_ma_models.py
 
 Modelos Autorregressivos (AR) e de Média Móvel (MA) para séries temporais,
-seguindo a interface TimeSeriesModel e o conteúdo da Semana 10–11 do curso.
+seguindo o conteúdo da nota 10-11
+
 Estacionariedade (AR): todas as raízes do polinômio ficam fora do círculo unitário.
 
-
 Invertibilidade (MA): todas as raízes do polinômio ficam fora do círculo unitário.
+ficam fora do círculo unitário.
 """
 
 from __future__ import annotations
@@ -25,11 +26,9 @@ from .base import TimeSeriesModel
 def _check_roots_outside_unit_circle(coeffs: np.ndarray, poly_type: str) -> bool:
     """
     Verifica se todas as raízes do polinômio estão fora do círculo unitário.
-
     Parameters
     ----------
     coeffs : np.ndarray
-        Coeficientes φ (AR) ou θ (MA) em ordem [φ_1, ..., φ_p] ou [θ_1, ..., θ_q]
     poly_type : {"ar", "ma"}
         Tipo do polinômio
 
@@ -41,12 +40,10 @@ def _check_roots_outside_unit_circle(coeffs: np.ndarray, poly_type: str) -> bool
     coeffs = np.asarray(coeffs, dtype=float)
 
     if coeffs.size == 0:
-        return True  # nada para checar
-
+        return True  
     if poly_type == "ar":
         poly = np.r_[1.0, -coeffs]
     elif poly_type == "ma":
-
         poly = np.r_[1.0, coeffs]
     else:
         raise ValueError("poly_type deve ser 'ar' ou 'ma'")
@@ -60,8 +57,7 @@ def _check_roots_outside_unit_circle(coeffs: np.ndarray, poly_type: str) -> bool
 
 class ARModel(TimeSeriesModel):
     """
-    Modelo Autorregressivo AR(p)
-
+    Modelo Autorregressivo AR(p):
     Implementado via statsmodels.tsa.ar_model.AutoReg.
 
     Este modelo deve ser aplicado em séries (ou transformações/diferenças da série)
@@ -103,20 +99,17 @@ class ARModel(TimeSeriesModel):
         self._fitted_model = self._model.fit(**kwargs)
 
         # Valores ajustados e resíduos
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = self._fitted_model.resid
+        self.fitted_values = np.asarray(self._fitted_model.fittedvalues, dtype=float)
+        self.residuals = np.asarray(self._fitted_model.resid, dtype=float)
         self.y_train = y
         self.is_fitted = True
 
-        # Coeficientes AR (ignorando intercepto)
-        params = self._fitted_model.params
-        param_names = self._fitted_model.model.param_names
-
-        ar_coeffs = []
-        for coef, name in zip(params, param_names):
-            if name.lower().startswith("y.l"):
-                ar_coeffs.append(coef)
-        self.ar_params_ = np.asarray(ar_coeffs, dtype=float)
+        # Coeficientes AR (ignorando intercepto se houver)
+        params = np.asarray(self._fitted_model.params, dtype=float)
+        if self.include_const:
+            self.ar_params_ = params[1:]
+        else:
+            self.ar_params_ = params
 
         # Checar estacionariedade
         self.is_stationary = _check_roots_outside_unit_circle(self.ar_params_, poly_type="ar")
@@ -154,9 +147,11 @@ class ARModel(TimeSeriesModel):
     def get_params(self) -> Dict[str, Any]:
         if not self.is_fitted:
             return {}
+        params = np.asarray(self._fitted_model.params, dtype=float)
+        const = float(params[0]) if self.include_const and params.size > 0 else 0.0
         return {
             "ar_params": self.ar_params_,
-            "const": float(self._fitted_model.params[0]) if self.include_const else 0.0,
+            "const": const,
             "sigma2": float(self._fitted_model.sigma2),
             "aic": float(self._fitted_model.aic),
             "bic": float(self._fitted_model.bic),
@@ -166,9 +161,12 @@ class ARModel(TimeSeriesModel):
 
 class MAModel(TimeSeriesModel):
     """
-    Modelo de Média Móvel MA(q)
+    Modelo de Média Móvel MA(q):
+
+        y_t = C + ε_t + θ_1 ε_{t-1} + ... + θ_q ε_{t-q},  ε_t ~ WN(0, σ^2)
 
     Implementado via statsmodels.tsa.arima.model.ARIMA com order=(0, 0, q).
+
     Este modelo deve ser aplicado em séries estacionárias.
     """
 
@@ -206,20 +204,27 @@ class MAModel(TimeSeriesModel):
         self._model = ARIMA(y, order=(0, 0, self.order), trend=trend)
         self._fitted_model = self._model.fit(**kwargs)
 
-        self.fitted_values = self._fitted_model.fittedvalues
-        self.residuals = self._fitted_model.resid
+        self.fitted_values = np.asarray(self._fitted_model.fittedvalues, dtype=float)
+        self.residuals = np.asarray(self._fitted_model.resid, dtype=float)
         self.y_train = y
         self.is_fitted = True
 
-        # Extrair coeficientes MA (θ)
-        params = self._fitted_model.params
-        param_names = self._fitted_model.param_names
-
-        ma_coeffs = []
-        for coef, name in zip(params, param_names):
-            if name.lower().startswith("ma.l"):
-                ma_coeffs.append(coef)
-        self.ma_params_ = np.asarray(ma_coeffs, dtype=float)
+        # Coeficientes MA
+        if hasattr(self._fitted_model, "maparams"):
+            self.ma_params_ = np.asarray(self._fitted_model.maparams, dtype=float)
+        else:
+            params = self._fitted_model.params
+            if hasattr(params, "index"):
+                names = list(params.index)
+                ma_coeffs = [
+                    coef
+                    for coef, name in zip(params.values, names)
+                    if name.lower().startswith("ma")
+                ]
+                self.ma_params_ = np.asarray(ma_coeffs, dtype=float)
+            else:   
+                params_arr = np.asarray(params, dtype=float)
+                self.ma_params_ = params_arr[-self.order :]
 
         # Checar invertibilidade
         self.is_invertible = _check_roots_outside_unit_circle(self.ma_params_, poly_type="ma")
@@ -254,9 +259,11 @@ class MAModel(TimeSeriesModel):
     def get_params(self) -> Dict[str, Any]:
         if not self.is_fitted:
             return {}
+        params = np.asarray(self._fitted_model.params, dtype=float)
+        const = float(params[0]) if self.include_const and params.size > 0 else 0.0
         return {
             "ma_params": self.ma_params_,
-            "const": float(self._fitted_model.params[0]) if self.include_const else 0.0,
+            "const": const,
             "sigma2": float(self._fitted_model.sigma2),
             "aic": float(self._fitted_model.aic),
             "bic": float(self._fitted_model.bic),
