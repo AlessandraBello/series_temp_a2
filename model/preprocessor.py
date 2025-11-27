@@ -71,7 +71,7 @@ class LogDiffTransform(Preprocessor):
         self._initial_log_value = float(log_y[0])
         return np.diff(log_y)
 
-    def inverse_transform(self, y: np.ndarray) -> np.ndarray:
+    def inverse_transform(self, y: np.ndarray, initial_log_value: float | None = None) -> np.ndarray:
         """
         Reconstrói a série original a partir das diferenças do log.
 
@@ -83,15 +83,20 @@ class LogDiffTransform(Preprocessor):
         if y.size == 0:
             return y
 
-        if self._initial_log_value is None:
+        base = (
+            initial_log_value
+            if initial_log_value is not None
+            else self._initial_log_value
+        )
+        if base is None:
             raise ValueError(
-                "LogDiffTransform.inverse_transform foi chamado antes de "
-                "transform, logo o valor inicial não está definido."
+                "Nenhum initial_log_value foi fornecido e nenhum valor "
+                "foi armazenado via transform()."
             )
 
         # Reconstrói o log via soma cumulativa das diferenças
         log_series = np.concatenate(
-            [[self._initial_log_value], self._initial_log_value + np.cumsum(y)]
+            [[base], base + np.cumsum(y)]
         )
         # Volta para a escala original
         return np.exp(log_series) - self.eps
