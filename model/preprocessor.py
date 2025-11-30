@@ -75,11 +75,7 @@ class LogDiffTransform(Preprocessor):
         self._initial_log_value = float(log_y[0])
         return np.diff(log_y)
 
-    def inverse_transform(
-        self,
-        y: np.ndarray,
-        initial_log_value: float | None = None
-    ) -> np.ndarray:
+    def inverse_transform(self, y: np.ndarray, initial_log_value: float | None = None) -> np.ndarray:
         """
         Reconstrói a série original a partir das diferenças do log.
 
@@ -155,12 +151,12 @@ class Differencer(Preprocessor):
         self._last_train_value = float(y[-1])
         return np.diff(y, n=1)
 
-    def inverse_transform(self, y_diff_forecast: np.ndarray) -> np.ndarray:
+    def inverse_transform(self, y_diff_forecast: np.ndarray, initial_value: float | None = None) -> np.ndarray:
         """
         Reconstrói previsões em nível a partir de previsões na escala diferenciada.
 
         Suponha:
-        - y_T é o último valor observado da série original (armazenado em transform).
+        - y_T é o último valor observado da série original (armazenado em transform ou passado como parâmetro).
         - y_diff_forecast contém previsões de y'_{T+1}, y'_{T+2}, ...
 
         Então:
@@ -172,12 +168,16 @@ class Differencer(Preprocessor):
         ----------
         y_diff_forecast : np.ndarray
             Previsões na escala diferenciada.
+        initial_value : float, optional
+            Valor inicial y_T para reconstrução. Se None, usa o valor armazenado
+            durante `transform`.
 
         Returns
         -------
         np.ndarray
             Previsões na escala original (nível).
         """
+        
         if self.order == 0:
             return np.asarray(y_diff_forecast, dtype=float)
 
@@ -187,12 +187,19 @@ class Differencer(Preprocessor):
                 "antes de inverse_transform."
             )
 
+        if initial_value is not None:
+            prev = initial_value
+        else:
+            if self._last_train_value is None:
+                raise ValueError(
+                    "Nenhum initial_value foi fornecido e nenhum valor "
+                    "foi armazenado via transform()."
+                )
+            prev = self._last_train_value
+
         y_diff_forecast = np.asarray(y_diff_forecast, dtype=float)
         y_level = np.empty_like(y_diff_forecast)
 
-        prev = self._last_train_value
-        for i, d in enumerate(y_diff_forecast):
-            prev = prev + d
-            y_level[i] = prev
+        y_level = np.concatenate([[prev], prev + np.cumsum(y_diff_forecast)])
 
         return y_level

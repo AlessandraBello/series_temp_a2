@@ -13,8 +13,8 @@ from typing import Dict, Any
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import acf
-
 from .base import Diagnostics, TimeSeriesModel
+from typing import Dict, Any
 
 
 class ResidualDiagnostics(Diagnostics):

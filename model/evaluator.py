@@ -1,12 +1,8 @@
 """
 Módulo para avaliação de modelos de séries temporais.
-
-- Avaliação de transformações (teste ADF).
-- (Opcional) Avaliação de previsões: MAE, RMSE, MAPE, MASE, RMSSE.
+Cálculo de métricas como MAE, RMSE, MAPE, etc., e ferramentas
+para avaliar a qualidade de transformações de séries.
 """
-
-from __future__ import annotations
-
 from typing import Dict, Any, Optional
 
 import numpy as np
@@ -16,23 +12,18 @@ from statsmodels.tsa.stattools import adfuller
 from .base import Evaluator
 
 
-class TimeSeriesEvaluator(Evaluator):
+class TransformEvaluator(Evaluator):
     """
     Implementação concreta de avaliador de séries temporais.
 
     - Para transformações (como diferença, log-diferença), expõe
       o método `evaluate`, que usa o teste ADF para
       medir estacionariedade.
-    - Para previsões, expõe o método opcional `evaluate_forecast`.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        # Apenas para referência; para transformações não usamos essa lista diretamente
-        self.metrics = ["adf_p_value", "adf_stat", "n_obs",
-                        "MAE", "RMSE", "MAPE", "MASE", "RMSSE"]
-
-    # --------- AVALIAÇÃO DE TRANSFORMAÇÃO (ADF) ---------
+    
     def evaluate(
         self, series: pd.Series, transform_name: str, series_name: str
     ) -> Dict[str, Any]:
@@ -56,15 +47,6 @@ class TimeSeriesEvaluator(Evaluator):
             observações utilizadas.
         """
         clean_series = series.dropna()
-        if len(clean_series) == 0:
-            return {
-                "series": series_name,
-                "transform": transform_name,
-                "p_value": np.nan,
-                "test_stat": np.nan,
-                "n_obs": 0,
-            }
-
         result = adfuller(clean_series.values)
 
         return {
@@ -74,6 +56,16 @@ class TimeSeriesEvaluator(Evaluator):
             "test_stat": float(result[0]),
             "n_obs": int(result[3]),
         }
+            
+class TimeSeriesEvaluator(Evaluator):
+    """
+    Implementação concreta de avaliador de séries temporais.
+
+    - 
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
 
     # --------- AVALIAÇÃO DE PREVISÃO (MÉTRICAS) ---------
     def _mase_denominator(
@@ -107,7 +99,7 @@ class TimeSeriesEvaluator(Evaluator):
             return None
         return denom
 
-    def evaluate_forecast(
+    def evaluate(
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
@@ -160,9 +152,9 @@ class TimeSeriesEvaluator(Evaluator):
         # MASE / RMSSE
         denom = self._mase_denominator(y_train=y_train, seasonal_periods=seasonal_periods)
         if denom is not None and denom > 0:
-            q = e / denom
-            metrics["MASE"] = float(np.mean(np.abs(q)))
-            metrics["RMSSE"] = float(np.sqrt(np.mean(q**2)))
+            scaled_error = e / denom
+            metrics["MASE"] = float(np.mean(np.abs(scaled_error)))
+            metrics["RMSSE"] = float(np.sqrt(np.mean(scaled_error**2)))
         else:
             metrics["MASE"] = np.nan
             metrics["RMSSE"] = np.nan
