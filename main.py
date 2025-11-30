@@ -10,7 +10,7 @@ from model.data_loader import CSVDataLoader
 from model.baseline_models import NaiveForecast, MovingAverage
 from model.exp_smooth_models import SimpleExponentialSmoothingModel
 from model.visualizer import TimeSeriesVisualizer
-from model.evaluator import TimeSeriesEvaluator
+from model.evaluator import TimeSeriesEvaluator, TransformEvaluator
 from model.diagnostics import ResidualDiagnostics
 from model.preprocessor import LogDiffTransform, Differencer
 from model.ar_ma_models import ARModel, MAModel
@@ -37,7 +37,7 @@ def evaluate_transformations_for_series(
     (sem transformação, diferença de primeira ordem, log-diferença)
     para cada série.
     """
-    evaluator = TimeSeriesEvaluator()
+    evaluator = TransformEvaluator()
     results: list[Dict] = []
 
     for series_name in series_names:
@@ -137,7 +137,7 @@ def fit_ar_ma_models_on_diff(
     ar_model = ARModel(lags=ar_lags)
     ar_model.fit(y_train_diff)
     y_diff_forecast_ar = ar_model.predict(steps=len(y_test))
-    y_pred_ar = diff_ar.inverse_transform(y_diff_forecast_ar)
+    y_pred_ar = diff_ar.inverse_transform(y_diff_forecast_ar, initial_value=y_train[-1])[1:]  # descarta o primeiro ponto extra
     forecasts[f"AR({ar_lags}) diff"] = y_pred_ar
 
     # MA(q) sobre série diferenciada
@@ -146,7 +146,7 @@ def fit_ar_ma_models_on_diff(
     ma_model = MAModel(order=ma_order)
     ma_model.fit(y_train_diff_ma)
     y_diff_forecast_ma = ma_model.predict(steps=len(y_test))
-    y_pred_ma = diff_ma.inverse_transform(y_diff_forecast_ma)
+    y_pred_ma = diff_ma.inverse_transform(y_diff_forecast_ma, initial_value=y_train[-1])[1:]  # descarta o primeiro ponto extra
     forecasts[f"MA({ma_order}) diff"] = y_pred_ma
 
     return forecasts
