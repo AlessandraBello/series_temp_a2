@@ -7,7 +7,6 @@ seguindo o conteúdo da nota 10-11
 Estacionariedade (AR): todas as raízes do polinômio ficam fora do círculo unitário.
 
 Invertibilidade (MA): todas as raízes do polinômio ficam fora do círculo unitário.
-ficam fora do círculo unitário.
 """
 
 from __future__ import annotations
