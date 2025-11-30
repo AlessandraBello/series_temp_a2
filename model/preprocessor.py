@@ -123,7 +123,7 @@ class Differencer(Preprocessor):
                 "Differencer atualmente implementa apenas order=0 ou 1."
             )
         self.order = order
-        self._last_train_value: Optional[float] = None
+        self._initial_value: Optional[float] = None
 
     def transform(self, y: np.ndarray) -> np.ndarray:
         """
@@ -142,13 +142,13 @@ class Differencer(Preprocessor):
         y = np.asarray(y, dtype=float)
 
         if self.order == 0:
-            self._last_train_value = float(y[-1])
+            self._initial_value = float(y[0])
             return y
 
         if len(y) < 2:
             raise ValueError("Need at least 2 observations to difference.")
 
-        self._last_train_value = float(y[-1])
+        self._initial_value = float(y[0])
         return np.diff(y, n=1)
 
     def inverse_transform(self, y_diff_forecast: np.ndarray, initial_value: float | None = None) -> np.ndarray:
@@ -181,7 +181,7 @@ class Differencer(Preprocessor):
         if self.order == 0:
             return np.asarray(y_diff_forecast, dtype=float)
 
-        if self._last_train_value is None:
+        if self._initial_value is None:
             raise ValueError(
                 "Differencer precisa ser ajustado (transform chamado) "
                 "antes de inverse_transform."
@@ -190,12 +190,12 @@ class Differencer(Preprocessor):
         if initial_value is not None:
             prev = initial_value
         else:
-            if self._last_train_value is None:
+            if self._initial_value is None:
                 raise ValueError(
                     "Nenhum initial_value foi fornecido e nenhum valor "
                     "foi armazenado via transform()."
                 )
-            prev = self._last_train_value
+            prev = self._initial_value
 
         y_diff_forecast = np.asarray(y_diff_forecast, dtype=float)
         y_level = np.empty_like(y_diff_forecast)
