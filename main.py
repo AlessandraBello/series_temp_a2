@@ -113,29 +113,6 @@ def fit_baseline_models(y_train: np.ndarray, y_test: np.ndarray) -> Dict[str, np
 
     return forecasts
 
-def select_ar_model(y: np.ndarray, max_lags: int = 10) -> ARModel:
-    best_model = None
-    best_aic = np.inf
-    for p in range(1, max_lags + 1):
-        model = ARModel(lags=p)
-        model.fit(y)
-        if model.get_params().get("aic", np.inf) < best_aic:
-            best_aic = model.get_params().get("aic", np.inf)
-            best_model = model
-    return best_model
-
-
-def select_ma_model(y: np.ndarray, max_order: int = 10) -> MAModel:
-    best_model = None
-    best_aic = np.inf
-    for q in range(1, max_order + 1):
-        model = MAModel(order=q)
-        model.fit(y)
-        if model.get_params().get("aic", np.inf) < best_aic:
-            best_aic = model.get_params().get("aic", np.inf)
-            best_model = model
-    return best_model
-
 
 def fit_ar_ma_models_on_diff(
     y_train: np.ndarray,
@@ -272,25 +249,6 @@ def main():
 
     # Ajusta modelos baseline em nível
     baseline_forecasts = fit_baseline_models(y_train, y_test)
-
-    # Seleção automática de AR e MA
-    best_ar = select_ar_model(y_train, max_lags=10)
-    y_diff_forecast_ar = best_ar.predict(steps=len(y_test))
-    diff_ar = Differencer(order=1)
-    y_train_diff = diff_ar.transform(y_train)
-    y_pred_ar = diff_ar.inverse_transform(y_diff_forecast_ar, initial_value=y_train[-1])[1:]
-
-    best_ma = select_ma_model(y_train, max_order=10)
-    y_diff_forecast_ma = best_ma.predict(steps=len(y_test))
-    diff_ma = Differencer(order=1)
-    y_train_diff_ma = diff_ma.transform(y_train)
-    y_pred_ma = diff_ma.inverse_transform(y_diff_forecast_ma, initial_value=y_train[-1])[1:]
-
-    ar_ma_forecasts = {
-        f"AR({best_ar.lags}) diff": y_pred_ar,
-        f"MA({best_ma.order}) diff": y_pred_ma
-    }
-
 
     # Ajusta modelos AR e MA sobre a série diferenciada
     ar_ma_forecasts = fit_ar_ma_models_on_diff(

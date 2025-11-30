@@ -263,7 +263,7 @@ class MAModel(TimeSeriesModel):
         return {
             "ma_params": self.ma_params_,
             "const": const,
-            "sigma2": float(self._fitted_model.sigma2),
+            "sigma2": float(self._fitted_model.resid.var()),
             "aic": float(self._fitted_model.aic),
             "bic": float(self._fitted_model.bic),
             "is_invertible": self.is_invertible,
