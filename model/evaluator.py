@@ -61,7 +61,7 @@ class TimeSeriesEvaluator(Evaluator):
     """
     Implementação concreta de avaliador de séries temporais.
 
-    - 
+    Avalia previsões de séries temporais utilizando métricas como MAE, RMSE, MAPE, MASE, etc.
     """
 
     def __init__(self) -> None:

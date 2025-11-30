@@ -159,13 +159,13 @@ def evaluate_forecasts(
     seasonal_periods: int | None = None,
 ) -> pd.DataFrame:
     """
-    Avalia as previsões usando TimeSeriesEvaluator.evaluate_forecast.
+    Avalia as previsões usando TimeSeriesEvaluator.evaluate.
     """
     evaluator = TimeSeriesEvaluator()
     rows = []
 
     for name, y_pred in forecasts.items():
-        metrics = evaluator.evaluate_forecast(
+        metrics = evaluator.evaluate(
             y_true=y_test,
             y_pred=y_pred,
             y_train=y_train,
