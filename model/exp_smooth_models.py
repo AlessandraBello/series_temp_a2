@@ -166,6 +166,13 @@ class SimpleExponentialSmoothingModel(ETSModel):
             raise ValueError("O modelo precisa ser ajustado antes de fazer previsões.")
         
         return self._fitted_model.forecast(steps)
+    
+    def get_params(self) -> Dict[str, Any]:
+        if not self.is_fitted:
+            return {}
+        return {
+            "aic": float(self._fitted_model.aic)
+        }
 
 
 class HoltLinearTrendModel(ETSModel):
@@ -270,6 +277,13 @@ class HoltLinearTrendModel(ETSModel):
             raise ValueError("O modelo precisa ser ajustado antes de fazer previsões.")
         
         return self._fitted_model.forecast(steps)
+    
+    def get_params(self) -> Dict[str, Any]:
+        if not self.is_fitted:
+            return {}
+        return {
+            "aic": float(self._fitted_model.aic)
+        }
 
 
 class HoltWintersAdditiveModel(ETSModel):
@@ -389,6 +403,13 @@ class HoltWintersAdditiveModel(ETSModel):
             raise ValueError("O modelo precisa ser ajustado antes de fazer previsões.")
         
         return self._fitted_model.forecast(steps)
+    
+    def get_params(self) -> Dict[str, Any]:
+        if not self.is_fitted:
+            return {}
+        return {
+            "aic": float(self._fitted_model.aic)
+        }
 
 
 class HoltWintersMultiplicativeModel(ETSModel):
@@ -508,4 +529,11 @@ class HoltWintersMultiplicativeModel(ETSModel):
             raise ValueError("O modelo precisa ser ajustado antes de fazer previsões.")
         
         return self._fitted_model.forecast(steps)
+    
+    def get_params(self) -> Dict[str, Any]:
+        if not self.is_fitted:
+            return {}
+        return {
+            "aic": float(self._fitted_model.aic)
+        }
     
