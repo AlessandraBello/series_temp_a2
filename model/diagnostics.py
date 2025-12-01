@@ -58,3 +58,40 @@ class ResidualDiagnostics(Diagnostics):
         }
 
         return diagnostics
+
+class WalkForwardDiagnostics(Diagnostics):
+    """
+    Realiza diagnósticos em janelas móveis (walk-forward) de uma série temporal.
+    """
+
+    def __init__(self, min_train_size: int, horizon:int=1, step_size: int=1):
+        self.min_train_size = min_train_size
+        self.horizon = horizon
+        self.step_size = step_size
+
+    def diagnose(self, model: TimeSeriesModel, y: np.ndarray, **kwargs) -> Dict[str, Any]:
+        from .evaluator import TimeSeriesEvaluator
+        n = len(y)
+        y_preds = []
+        y_trues = []
+
+        for end in range(self.min_train_size, n - self.horizon + 1, self.step_size):
+            y_train = y[:end]
+            y_true = y[end:end + self.horizon]
+            model.fit(y_train)
+            y_pred = model.predict(steps=self.horizon)
+            y_preds.append(y_pred[-1]) # último passo da previsão
+            y_trues.append(y_true[-1]) # último valor verdadeiro
+            
+        evaluator = TimeSeriesEvaluator()
+        metrics = evaluator.evaluate(
+            np.array(y_trues),
+            np.array(y_preds),
+            y_train=None,
+            seasonal_periods=None
+        )
+        result = {}
+        for key, value in metrics.items():
+            if value is not None and value is not np.nan:
+                result[key] = float(value)
+        return result

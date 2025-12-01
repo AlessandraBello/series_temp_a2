@@ -1,3 +1,4 @@
+
 """
 ar_ma_models.py
 
@@ -8,7 +9,6 @@ Estacionariedade (AR): todas as raízes do polinômio ficam fora do círculo uni
 
 Invertibilidade (MA): todas as raízes do polinômio ficam fora do círculo unitário.
 """
-
 from __future__ import annotations
 
 from typing import Optional, Dict, Any
@@ -22,36 +22,50 @@ from statsmodels.tsa.arima.model import ARIMA
 from .base import TimeSeriesModel
 
 
-def _check_roots_outside_unit_circle(coeffs: np.ndarray, poly_type: str) -> bool:
+def _check_roots_outside_unit_circle(
+    coeffs: np.ndarray,
+    poly_type: str,
+    tol: float = 1e-3,
+) -> tuple[bool, np.ndarray]:
     """
     Verifica se todas as raízes do polinômio estão fora do círculo unitário.
+
     Parameters
     ----------
     coeffs : np.ndarray
+        Coeficientes do polinômio (AR ou MA).
     poly_type : {"ar", "ma"}
-        Tipo do polinômio
+        Tipo do polinômio.
+    tol : float
+        Tolerância numérica. Consideramos "problema" se |raiz| <= 1 + tol.
 
     Returns
     -------
-    bool
-        True se todas as raízes têm módulo > 1.
+    (bool, np.ndarray)
+        - bool: True se todas as raízes têm módulo > 1 + tol.
+        - np.ndarray: array de raízes.
     """
     coeffs = np.asarray(coeffs, dtype=float)
 
     if coeffs.size == 0:
-        return True  
+        # Sem coeficientes => não temos raiz relevante
+        return True, np.array([], dtype=float)
+
     if poly_type == "ar":
-        poly = np.r_[1.0, -coeffs]
+        poly = np.r_[-coeffs[::-1], 1.0]
+
     elif poly_type == "ma":
-        poly = np.r_[1.0, coeffs]
+        poly = np.r_[coeffs[::-1], 1.0]
     else:
         raise ValueError("poly_type deve ser 'ar' ou 'ma'")
 
     roots = np.roots(poly)
     if roots.size == 0:
-        return True
+        return True, roots
 
-    return np.all(np.abs(roots) > 1.0)
+    mod = np.abs(roots)
+    is_outside = np.all(mod > 1.0 + tol)
+    return is_outside, roots
 
 
 class ARModel(TimeSeriesModel):
@@ -73,8 +87,10 @@ class ARModel(TimeSeriesModel):
 
         self.ar_params_: Optional[np.ndarray] = None
         self.is_stationary: Optional[bool] = None
+        self.ar_roots_: Optional[np.ndarray] = None
+        self.ar_roots_mod_: Optional[np.ndarray] = None
 
-    def fit(self, y: np.ndarray, **kwargs) -> "ARModel":
+    def fit(self, y: np.ndarray, verbose=False, **kwargs) -> "ARModel":
         """
         Ajusta o modelo AR(p) à série y.
 
@@ -83,12 +99,15 @@ class ARModel(TimeSeriesModel):
         y : np.ndarray
             Série temporal (idealmente estacionária).
         **kwargs :
-            Passado para AutoReg.fit (p.ex., method="yule_walker" ou padrão "cmle").
+            Passado para AutoReg.fit
 
         Returns
         -------
         ARModel
         """
+        if not verbose:
+            print = lambda *args, **kwargs: None  # noqa: E731
+            
         y = np.asarray(y, dtype=float)
         if len(y) <= self.lags:
             raise ValueError(f"Need at least {self.lags + 1} observations for AR({self.lags}).")
@@ -97,29 +116,45 @@ class ARModel(TimeSeriesModel):
         self._model = AutoReg(y, lags=self.lags, trend=trend, old_names=False)
         self._fitted_model = self._model.fit(**kwargs)
 
-        # Valores ajustados e resíduos
         self.fitted_values = np.asarray(self._fitted_model.fittedvalues, dtype=float)
         self.residuals = np.asarray(self._fitted_model.resid, dtype=float)
         self.y_train = y
         self.is_fitted = True
 
-        # Coeficientes AR (ignorando intercepto se houver)
         params = np.asarray(self._fitted_model.params, dtype=float)
         if self.include_const:
             self.ar_params_ = params[1:]
+            const = params[0]
         else:
             self.ar_params_ = params
+            const = 0.0
 
-        # Checar estacionariedade
-        self.is_stationary = _check_roots_outside_unit_circle(self.ar_params_, poly_type="ar")
+        print(f"[ARModel] {self.name} - constante (intercepto): {const}")
+        print(f"[ARModel] {self.name} - parâmetros AR: {self.ar_params_}")
+
+        self.is_stationary, roots = _check_roots_outside_unit_circle(
+            self.ar_params_,
+            poly_type="ar",
+        )
+        self.ar_roots_ = roots
+        self.ar_roots_mod_ = np.abs(roots)
+
+        if roots.size > 0:
+            print(f"[ARModel] {self.name} - raízes do polinômio AR: {roots}")
+            print(f"[ARModel] {self.name} - |raízes|: {self.ar_roots_mod_}")
+        else:
+            print(f"[ARModel] {self.name} - nenhum root calculado (coeficientes vazios).")
+
         if not self.is_stationary:
             warnings.warn(
                 f"{self.name}: condições de estacionariedade podem não ser satisfeitas "
-                f"(raízes do polinômio AR dentro ou sobre o círculo unitário).",
+                f"(raízes do polinômio AR dentro ou sobre o círculo unitário com tolerância).",
                 UserWarning,
             )
 
         return self
+
+        
 
     def predict(self, steps: int, **kwargs) -> np.ndarray:
         """
@@ -160,9 +195,7 @@ class ARModel(TimeSeriesModel):
 
 class MAModel(TimeSeriesModel):
     """
-    Modelo de Média Móvel MA(q):
-
-        y_t = C + ε_t + θ_1 ε_{t-1} + ... + θ_q ε_{t-q},  ε_t ~ WN(0, σ^2)
+    Modelo de Média Móvel MA(q)
 
     Implementado via statsmodels.tsa.arima.model.ARIMA com order=(0, 0, q).
 
@@ -179,8 +212,10 @@ class MAModel(TimeSeriesModel):
 
         self.ma_params_: Optional[np.ndarray] = None
         self.is_invertible: Optional[bool] = None
+        self.ma_roots_: Optional[np.ndarray] = None
+        self.ma_roots_mod_: Optional[np.ndarray] = None
 
-    def fit(self, y: np.ndarray, **kwargs) -> "MAModel":
+    def fit(self, y: np.ndarray, verbose=False, **kwargs) -> "MAModel":
         """
         Ajusta o modelo MA(q) à série y.
 
@@ -195,12 +230,21 @@ class MAModel(TimeSeriesModel):
         -------
         MAModel
         """
+        if not verbose:
+            print = lambda *args, **kwargs: None  # noqa: E731
+        
         y = np.asarray(y, dtype=float)
         if len(y) <= self.order:
             raise ValueError(f"Need at least {self.order + 1} observations for MA({self.order}).")
 
         trend = "c" if self.include_const else "n"
-        self._model = ARIMA(y, order=(0, 0, self.order), trend=trend)
+        self._model = ARIMA(
+            y,
+            order=(0, 0, self.order),
+            trend=trend,
+            enforce_stationarity=False,   
+            enforce_invertibility=True,   
+        )
         self._fitted_model = self._model.fit(**kwargs)
 
         self.fitted_values = np.asarray(self._fitted_model.fittedvalues, dtype=float)
@@ -208,7 +252,6 @@ class MAModel(TimeSeriesModel):
         self.y_train = y
         self.is_fitted = True
 
-        # Coeficientes MA
         if hasattr(self._fitted_model, "maparams"):
             self.ma_params_ = np.asarray(self._fitted_model.maparams, dtype=float)
         else:
@@ -221,20 +264,43 @@ class MAModel(TimeSeriesModel):
                     if name.lower().startswith("ma")
                 ]
                 self.ma_params_ = np.asarray(ma_coeffs, dtype=float)
-            else:   
+            else:
                 params_arr = np.asarray(params, dtype=float)
                 self.ma_params_ = params_arr[-self.order :]
 
-        # Checar invertibilidade
-        self.is_invertible = _check_roots_outside_unit_circle(self.ma_params_, poly_type="ma")
+        # Constante (se houver)
+        params_arr_full = np.asarray(self._fitted_model.params, dtype=float)
+        const = float(params_arr_full[0]) if self.include_const and params_arr_full.size > 0 else 0.0
+
+        # --- LOG: parâmetros MA ---
+        print(f"[MAModel] {self.name} - constante (intercepto): {const}")
+        print(f"[MAModel] {self.name} - parâmetros MA: {self.ma_params_}")
+
+        # Checar invertibilidade + obter raízes
+        self.is_invertible, roots = _check_roots_outside_unit_circle(
+            self.ma_params_,
+            poly_type="ma",
+        )
+        self.ma_roots_ = roots
+        self.ma_roots_mod_ = np.abs(roots)
+
+        # --- LOG: raízes e módulos ---
+        if roots.size > 0:
+            print(f"[MAModel] {self.name} - raízes do polinômio MA: {roots}")
+            print(f"[MAModel] {self.name} - |raízes|: {self.ma_roots_mod_}")
+        else:
+            print(f"[MAModel] {self.name} - nenhum root calculado (coeficientes vazios).")
+
         if not self.is_invertible:
             warnings.warn(
                 f"{self.name}: condições de invertibilidade podem não ser satisfeitas "
-                f"(raízes do polinômio MA dentro ou sobre o círculo unitário).",
+                f"(raízes do polinômio MA dentro ou sobre o círculo unitário "
+                f"com tolerância).",
                 UserWarning,
             )
 
         return self
+
 
     def predict(self, steps: int, **kwargs) -> np.ndarray:
         """
