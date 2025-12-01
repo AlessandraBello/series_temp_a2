@@ -181,6 +181,69 @@ def evaluate_forecasts(
 
     return results_df
 
+def fit_ar_ma_models_on_logdiff(
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    ar_lags: int = 2,
+    ma_order: int = 1,
+) -> Dict[str, np.ndarray]:
+    """
+    Aplica DIFERENÇA DO LOG (LogDiffTransform) e ajusta:
+
+    - AR(ar_lags)
+    - MA(ma_order)
+
+    sobre a série transformada. Depois reconstrói previsões em nível
+    usando LogDiffTransform.inverse_transform.
+    """
+    forecasts: Dict[str, np.ndarray] = {}
+
+    if not (y_train > 0).all():
+        raise ValueError(
+            "LogDiffTransform requer série estritamente positiva. "
+            "Há valores <= 0 em y_train."
+        )
+
+    logdiff_ar = LogDiffTransform()
+    y_train_logdiff = logdiff_ar.transform(y_train)  
+
+    ar_model = ARModel(lags=ar_lags)
+    ar_model.fit(y_train_logdiff)
+
+    y_logdiff_forecast_ar = ar_model.predict(steps=len(y_test))
+
+    last_y_train = float(y_train[-1])
+    initial_log_value = float(np.log(last_y_train + logdiff_ar.eps))
+
+    y_level_ar = logdiff_ar.inverse_transform(
+        y_logdiff_forecast_ar,
+        initial_log_value=initial_log_value,
+    )
+    y_pred_ar = y_level_ar[1:]  
+
+    forecasts[f"AR({ar_lags}) logdiff"] = y_pred_ar
+
+    logdiff_ma = LogDiffTransform()
+    y_train_logdiff_ma = logdiff_ma.transform(y_train)
+
+    ma_model = MAModel(order=ma_order)
+    ma_model.fit(y_train_logdiff_ma)
+
+    y_logdiff_forecast_ma = ma_model.predict(steps=len(y_test))
+
+    last_y_train = float(y_train[-1])
+    initial_log_value_ma = float(np.log(last_y_train + logdiff_ma.eps))
+
+    y_level_ma = logdiff_ma.inverse_transform(
+        y_logdiff_forecast_ma,
+        initial_log_value=initial_log_value_ma,
+    )
+    y_pred_ma = y_level_ma[1:]
+
+    forecasts[f"MA({ma_order}) logdiff"] = y_pred_ma
+
+    return forecasts
+
 
 def diagnostics_for_diff_model(y_train: np.ndarray, lags: int = 24) -> None:
     """
@@ -251,15 +314,27 @@ def main():
     baseline_forecasts = fit_baseline_models(y_train, y_test)
 
     # Ajusta modelos AR e MA sobre a série diferenciada
-    ar_ma_forecasts = fit_ar_ma_models_on_diff(
+    ar_ma_forecasts_diff = fit_ar_ma_models_on_diff(
+    y_train=y_train,
+    y_test=y_test,
+    ar_lags=2,
+    ma_order=1,
+)
+
+    ar_ma_forecasts_logdiff = fit_ar_ma_models_on_logdiff(
         y_train=y_train,
         y_test=y_test,
         ar_lags=2,
         ma_order=1,
     )
 
-    # Combina previsões
-    all_forecasts = {**baseline_forecasts, **ar_ma_forecasts}
+    # Combina tudo
+    all_forecasts = {
+        **baseline_forecasts,
+        **ar_ma_forecasts_diff,
+        **ar_ma_forecasts_logdiff,
+    }
+
 
     results_df = evaluate_forecasts(
         y_train=y_train,
