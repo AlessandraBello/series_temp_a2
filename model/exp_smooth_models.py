@@ -171,7 +171,8 @@ class SimpleExponentialSmoothingModel(ETSModel):
         if not self.is_fitted:
             return {}
         return {
-            "aic": float(self._fitted_model.aic)
+            "aic": float(self._fitted_model.aic),
+            "params": self._fitted_model.params
         }
 
 
@@ -282,7 +283,8 @@ class HoltLinearTrendModel(ETSModel):
         if not self.is_fitted:
             return {}
         return {
-            "aic": float(self._fitted_model.aic)
+            "aic": float(self._fitted_model.aic),
+            "params": self._fitted_model.params
         }
 
 
@@ -408,7 +410,8 @@ class HoltWintersAdditiveModel(ETSModel):
         if not self.is_fitted:
             return {}
         return {
-            "aic": float(self._fitted_model.aic)
+            "aic": float(self._fitted_model.aic),
+            "params": self._fitted_model.params
         }
 
 
@@ -534,6 +537,7 @@ class HoltWintersMultiplicativeModel(ETSModel):
         if not self.is_fitted:
             return {}
         return {
-            "aic": float(self._fitted_model.aic)
+            "aic": float(self._fitted_model.aic),
+            "params": self._fitted_model.params
         }
     
