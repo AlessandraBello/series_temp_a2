@@ -90,7 +90,7 @@ class ARModel(TimeSeriesModel):
         self.ar_roots_: Optional[np.ndarray] = None
         self.ar_roots_mod_: Optional[np.ndarray] = None
 
-    def fit(self, y: np.ndarray, **kwargs) -> "ARModel":
+    def fit(self, y: np.ndarray, verbose=False, **kwargs) -> "ARModel":
         """
         Ajusta o modelo AR(p) à série y.
 
@@ -105,6 +105,9 @@ class ARModel(TimeSeriesModel):
         -------
         ARModel
         """
+        if not verbose:
+            print = lambda *args, **kwargs: None  # noqa: E731
+            
         y = np.asarray(y, dtype=float)
         if len(y) <= self.lags:
             raise ValueError(f"Need at least {self.lags + 1} observations for AR({self.lags}).")
@@ -212,7 +215,7 @@ class MAModel(TimeSeriesModel):
         self.ma_roots_: Optional[np.ndarray] = None
         self.ma_roots_mod_: Optional[np.ndarray] = None
 
-    def fit(self, y: np.ndarray, **kwargs) -> "MAModel":
+    def fit(self, y: np.ndarray, verbose=False, **kwargs) -> "MAModel":
         """
         Ajusta o modelo MA(q) à série y.
 
@@ -227,6 +230,9 @@ class MAModel(TimeSeriesModel):
         -------
         MAModel
         """
+        if not verbose:
+            print = lambda *args, **kwargs: None  # noqa: E731
+        
         y = np.asarray(y, dtype=float)
         if len(y) <= self.order:
             raise ValueError(f"Need at least {self.order + 1} observations for MA({self.order}).")
