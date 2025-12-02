@@ -91,6 +91,14 @@ class TimeSeriesModel(ABC):
             predictions.append(self.predict(steps, **kwargs))
         return np.array(predictions)
     
+    def reset_model(self) -> None:
+        """
+        Reseta o estado do modelo, desfazendo o ajuste.
+        """
+        self.is_fitted = False
+        self.fitted_values = None
+        self.residuals = None
+    
     def get_params(self) -> Dict[str, Any]:
         """
         Retorna os parâmetros do modelo.

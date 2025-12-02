@@ -69,7 +69,7 @@ class WalkForwardDiagnostics(Diagnostics):
         self.horizon = horizon
         self.step_size = step_size
 
-    def diagnose(self, model: TimeSeriesModel, y: np.ndarray, **kwargs) -> Dict[str, Any]:
+    def diagnose(self, model: TimeSeriesModel, y: np.ndarray, fit_params: dict = {}, predict_params: dict = {}, **kwargs) -> Dict[str, Any]:
         from .evaluator import TimeSeriesEvaluator
         n = len(y)
         y_preds = []
@@ -78,8 +78,17 @@ class WalkForwardDiagnostics(Diagnostics):
         for end in range(self.min_train_size, n - self.horizon + 1, self.step_size):
             y_train = y[:end]
             y_true = y[end:end + self.horizon]
-            model.fit(y_train)
-            y_pred = model.predict(steps=self.horizon)
+            adjusted_fit_params = fit_params.copy()
+            if "exog" in fit_params.keys():
+                adjusted_fit_params["exog"] = fit_params["exog"][:end]
+            
+            model.reset_model()
+            model.fit(y_train, **adjusted_fit_params)
+            
+            adjusted_predict_params = predict_params.copy()
+            if "exog" in predict_params.keys():
+                adjusted_predict_params["exog"] = predict_params["exog"][end:end + self.horizon]
+            y_pred = model.predict(steps=self.horizon, **adjusted_predict_params)
             y_preds.append(y_pred[-1]) # último passo da previsão
             y_trues.append(y_true[-1]) # último valor verdadeiro
             

@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.stattools import adfuller
+from sklearn.metrics import mean_absolute_percentage_error
 
 from .base import Evaluator
 

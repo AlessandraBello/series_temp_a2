@@ -21,54 +21,92 @@ from statsmodels.tsa.arima.model import ARIMA
 
 from .base import TimeSeriesModel
 
+from abc import ABC, abstractmethod
 
-def _check_roots_outside_unit_circle(
-    coeffs: np.ndarray,
-    poly_type: str,
-    tol: float = 1e-3,
-) -> tuple[bool, np.ndarray]:
-    """
-    Verifica se todas as raízes do polinômio estão fora do círculo unitário.
+class ARMAModel(TimeSeriesModel):
+    
+    @abstractmethod
+    def fit(self, y: np.ndarray, **kwargs) -> "ARMAModel":
+        pass
+    
+    @abstractmethod
+    def predict(self, steps: int, **kwargs) -> np.ndarray:
+        pass
+    
+    
+    def _check_roots_outside_unit_circle(
+        self,
+        coeffs: np.ndarray,
+        poly_type: str,
+        tol: float = 1e-3,
+    ) -> tuple[bool, np.ndarray]:
+        """
+        Verifica se todas as raízes do polinômio estão fora do círculo unitário.
 
-    Parameters
-    ----------
-    coeffs : np.ndarray
-        Coeficientes do polinômio (AR ou MA).
-    poly_type : {"ar", "ma"}
-        Tipo do polinômio.
-    tol : float
-        Tolerância numérica. Consideramos "problema" se |raiz| <= 1 + tol.
+        Parameters
+        ----------
+        coeffs : np.ndarray
+            Coeficientes do polinômio (AR ou MA).
+        poly_type : {"ar", "ma"}
+            Tipo do polinômio.
+        tol : float
+            Tolerância numérica. Consideramos "problema" se |raiz| <= 1 + tol.
 
-    Returns
-    -------
-    (bool, np.ndarray)
-        - bool: True se todas as raízes têm módulo > 1 + tol.
-        - np.ndarray: array de raízes.
-    """
-    coeffs = np.asarray(coeffs, dtype=float)
+        Returns
+        -------
+        (bool, np.ndarray)
+            - bool: True se todas as raízes têm módulo > 1 + tol.
+            - np.ndarray: array de raízes.
+        """
+        coeffs = np.asarray(coeffs, dtype=float)
 
-    if coeffs.size == 0:
-        # Sem coeficientes => não temos raiz relevante
-        return True, np.array([], dtype=float)
+        if coeffs.size == 0:
+            # Sem coeficientes => não temos raiz relevante
+            return True, np.array([], dtype=float)
 
-    if poly_type == "ar":
-        poly = np.r_[-coeffs[::-1], 1.0]
+        if poly_type == "ar":
+            poly = np.r_[-coeffs[::-1], 1.0]
 
-    elif poly_type == "ma":
-        poly = np.r_[coeffs[::-1], 1.0]
-    else:
-        raise ValueError("poly_type deve ser 'ar' ou 'ma'")
+        elif poly_type == "ma":
+            poly = np.r_[coeffs[::-1], 1.0]
+        else:
+            raise ValueError("poly_type deve ser 'ar' ou 'ma'")
 
-    roots = np.roots(poly)
-    if roots.size == 0:
-        return True, roots
+        roots = np.roots(poly)
+        if roots.size == 0:
+            return True, roots
 
-    mod = np.abs(roots)
-    is_outside = np.all(mod > 1.0 + tol)
-    return is_outside, roots
+        mod = np.abs(roots)
+        is_outside = np.all(mod > 1.0 + tol)
+        return is_outside, roots
+    
+    def reset_model(self):
+        super().reset_model()
+        self._model = None
+        self._fitted_model = None
+
+        self.ar_params_: Optional[np.ndarray] = None
+        self.is_stationary: Optional[bool] = None
+        self.ar_roots_: Optional[np.ndarray] = None
+        self.ar_roots_mod_: Optional[np.ndarray] = None
+    
+    def get_params(self) -> Dict[str, Any]:
+        if not self.is_fitted:
+            return {}
+        params = np.asarray(self._fitted_model.params, dtype=float)
+        const = float(params[0]) if self.include_const and params.size > 0 else 0.0
+        return {
+            "ar_params": self.ar_params_,
+            "const": const,
+            "sigma2": float(self._fitted_model.sigma2),
+            "aic": float(self._fitted_model.aic),
+            "bic": float(self._fitted_model.bic),
+            "is_stationary": self.is_stationary,
+        }
 
 
-class ARModel(TimeSeriesModel):
+
+class ARModel(ARMAModel):
     """
     Modelo Autorregressivo AR(p):
     Implementado via statsmodels.tsa.ar_model.AutoReg.
@@ -112,8 +150,10 @@ class ARModel(TimeSeriesModel):
         if len(y) <= self.lags:
             raise ValueError(f"Need at least {self.lags + 1} observations for AR({self.lags}).")
 
+        exog_data = kwargs.pop("exog", None)
+        
         trend = "c" if self.include_const else "n"
-        self._model = AutoReg(y, lags=self.lags, trend=trend, old_names=False)
+        self._model = AutoReg(y, lags=self.lags, trend=trend, old_names=False, exog=exog_data)
         self._fitted_model = self._model.fit(**kwargs)
 
         self.fitted_values = np.asarray(self._fitted_model.fittedvalues, dtype=float)
@@ -132,7 +172,7 @@ class ARModel(TimeSeriesModel):
         print(f"[ARModel] {self.name} - constante (intercepto): {const}")
         print(f"[ARModel] {self.name} - parâmetros AR: {self.ar_params_}")
 
-        self.is_stationary, roots = _check_roots_outside_unit_circle(
+        self.is_stationary, roots = self._check_roots_outside_unit_circle(
             self.ar_params_,
             poly_type="ar",
         )
@@ -154,8 +194,6 @@ class ARModel(TimeSeriesModel):
 
         return self
 
-        
-
     def predict(self, steps: int, **kwargs) -> np.ndarray:
         """
         Previsão h passos à frente.
@@ -172,28 +210,15 @@ class ARModel(TimeSeriesModel):
         """
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction.")
+        
+        exog_forecast = kwargs.pop("exog", None)
 
         start = len(self.y_train)
         end = start + steps - 1
-        forecast = self._fitted_model.predict(start=start, end=end)
+        forecast = self._fitted_model.predict(start=start, end=end, exog_oos=exog_forecast)
         return np.asarray(forecast, dtype=float)
 
-    def get_params(self) -> Dict[str, Any]:
-        if not self.is_fitted:
-            return {}
-        params = np.asarray(self._fitted_model.params, dtype=float)
-        const = float(params[0]) if self.include_const and params.size > 0 else 0.0
-        return {
-            "ar_params": self.ar_params_,
-            "const": const,
-            "sigma2": float(self._fitted_model.sigma2),
-            "aic": float(self._fitted_model.aic),
-            "bic": float(self._fitted_model.bic),
-            "is_stationary": self.is_stationary,
-        }
-
-
-class MAModel(TimeSeriesModel):
+class MAModel(ARMAModel):
     """
     Modelo de Média Móvel MA(q)
 
@@ -236,6 +261,8 @@ class MAModel(TimeSeriesModel):
         y = np.asarray(y, dtype=float)
         if len(y) <= self.order:
             raise ValueError(f"Need at least {self.order + 1} observations for MA({self.order}).")
+        
+        exog = kwargs.pop("exog", None)
 
         trend = "c" if self.include_const else "n"
         self._model = ARIMA(
@@ -244,6 +271,7 @@ class MAModel(TimeSeriesModel):
             trend=trend,
             enforce_stationarity=False,   
             enforce_invertibility=True,   
+            exog=exog,
         )
         self._fitted_model = self._model.fit(**kwargs)
 
@@ -277,7 +305,7 @@ class MAModel(TimeSeriesModel):
         print(f"[MAModel] {self.name} - parâmetros MA: {self.ma_params_}")
 
         # Checar invertibilidade + obter raízes
-        self.is_invertible, roots = _check_roots_outside_unit_circle(
+        self.is_invertible, roots = self._check_roots_outside_unit_circle(
             self.ma_params_,
             poly_type="ma",
         )
@@ -318,19 +346,8 @@ class MAModel(TimeSeriesModel):
         """
         if not self.is_fitted:
             raise ValueError("Model must be fitted before prediction.")
-        forecast = self._fitted_model.forecast(steps)
+        
+        exog_forecast = kwargs.pop("exog", None)
+        
+        forecast = self._fitted_model.forecast(steps, exog=exog_forecast)
         return np.asarray(forecast, dtype=float)
-
-    def get_params(self) -> Dict[str, Any]:
-        if not self.is_fitted:
-            return {}
-        params = np.asarray(self._fitted_model.params, dtype=float)
-        const = float(params[0]) if self.include_const and params.size > 0 else 0.0
-        return {
-            "ma_params": self.ma_params_,
-            "const": const,
-            "sigma2": float(self._fitted_model.resid.var()),
-            "aic": float(self._fitted_model.aic),
-            "bic": float(self._fitted_model.bic),
-            "is_invertible": self.is_invertible,
-        }
