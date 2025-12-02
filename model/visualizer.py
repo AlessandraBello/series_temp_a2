@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Optional, Dict, Any
+from statsmodels.graphics.tsaplots import plot_acf
 
 from .base import Visualizer, TimeSeriesModel
 
@@ -238,14 +239,21 @@ class TimeSeriesVisualizer(Visualizer):
         axes[1, 0].grid(True, alpha=0.3)
 
         # Autocorrelação dos resíduos
-        max_lag = min(20, len(residuals) // 2)
-        autocorrs = [self._autocorr(residuals, lag) for lag in range(1, max_lag + 1)]
-        axes[1, 1].bar(range(1, max_lag + 1), autocorrs)
-        axes[1, 1].axhline(y=0, color="r", linestyle="-", alpha=0.5)
-        axes[1, 1].set_title("Residuals Autocorrelation")
-        axes[1, 1].set_xlabel("Lag")
-        axes[1, 1].set_ylabel("Autocorrelation")
-        axes[1, 1].grid(True, alpha=0.3)
+        plot_acf(
+            residuals,
+            ax=axes[1, 1],
+            lags=min(20, len(residuals) // 2),
+            alpha=0.05
+        )
+        axes[1, 1].set_title("Residuals Autocorrelation (ACF)")
+        # max_lag = min(20, len(residuals) // 2)
+        # autocorrs = [self._autocorr(residuals, lag) for lag in range(1, max_lag + 1)]
+        # axes[1, 1].bar(range(1, max_lag + 1), autocorrs)
+        # axes[1, 1].axhline(y=0, color="r", linestyle="-", alpha=0.5)
+        # axes[1, 1].set_title("Residuals Autocorrelation")
+        # axes[1, 1].set_xlabel("Lag")
+        # axes[1, 1].set_ylabel("Autocorrelation")
+        # axes[1, 1].grid(True, alpha=0.3)
 
         plt.tight_layout()
         plt.show()
