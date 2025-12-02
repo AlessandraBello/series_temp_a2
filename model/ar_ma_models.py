@@ -85,7 +85,7 @@ class ARMAModel(TimeSeriesModel):
         self._model = None
         self._fitted_model = None
 
-        self.ar_params_: Optional[np.ndarray] = None
+        self.params_: Optional[np.ndarray] = None
         self.is_stationary: Optional[bool] = None
         self.ar_roots_: Optional[np.ndarray] = None
         self.ar_roots_mod_: Optional[np.ndarray] = None
@@ -96,12 +96,10 @@ class ARMAModel(TimeSeriesModel):
         params = np.asarray(self._fitted_model.params, dtype=float)
         const = float(params[0]) if self.include_const and params.size > 0 else 0.0
         return {
-            "ar_params": self.ar_params_,
+            "params": self.params_,
             "const": const,
-            "sigma2": float(self._fitted_model.sigma2),
             "aic": float(self._fitted_model.aic),
-            "bic": float(self._fitted_model.bic),
-            "is_stationary": self.is_stationary,
+            "bic": float(self._fitted_model.bic)
         }
 
 
@@ -123,7 +121,7 @@ class ARModel(ARMAModel):
         self._model = None
         self._fitted_model = None
 
-        self.ar_params_: Optional[np.ndarray] = None
+        self.params_: Optional[np.ndarray] = None
         self.is_stationary: Optional[bool] = None
         self.ar_roots_: Optional[np.ndarray] = None
         self.ar_roots_mod_: Optional[np.ndarray] = None
@@ -163,17 +161,17 @@ class ARModel(ARMAModel):
 
         params = np.asarray(self._fitted_model.params, dtype=float)
         if self.include_const:
-            self.ar_params_ = params[1:]
+            self.params_ = params[1:]
             const = params[0]
         else:
-            self.ar_params_ = params
+            self.params_ = params
             const = 0.0
 
         print(f"[ARModel] {self.name} - constante (intercepto): {const}")
-        print(f"[ARModel] {self.name} - parâmetros AR: {self.ar_params_}")
+        print(f"[ARModel] {self.name} - parâmetros AR: {self.params_}")
 
         self.is_stationary, roots = self._check_roots_outside_unit_circle(
-            self.ar_params_,
+            self.params_,
             poly_type="ar",
         )
         self.ar_roots_ = roots
@@ -235,7 +233,7 @@ class MAModel(ARMAModel):
         self._model = None
         self._fitted_model = None
 
-        self.ma_params_: Optional[np.ndarray] = None
+        self.params_: Optional[np.ndarray] = None
         self.is_invertible: Optional[bool] = None
         self.ma_roots_: Optional[np.ndarray] = None
         self.ma_roots_mod_: Optional[np.ndarray] = None
@@ -281,7 +279,7 @@ class MAModel(ARMAModel):
         self.is_fitted = True
 
         if hasattr(self._fitted_model, "maparams"):
-            self.ma_params_ = np.asarray(self._fitted_model.maparams, dtype=float)
+            self.params_ = np.asarray(self._fitted_model.maparams, dtype=float)
         else:
             params = self._fitted_model.params
             if hasattr(params, "index"):
@@ -291,10 +289,10 @@ class MAModel(ARMAModel):
                     for coef, name in zip(params.values, names)
                     if name.lower().startswith("ma")
                 ]
-                self.ma_params_ = np.asarray(ma_coeffs, dtype=float)
+                self.params_ = np.asarray(ma_coeffs, dtype=float)
             else:
                 params_arr = np.asarray(params, dtype=float)
-                self.ma_params_ = params_arr[-self.order :]
+                self.params_ = params_arr[-self.order :]
 
         # Constante (se houver)
         params_arr_full = np.asarray(self._fitted_model.params, dtype=float)
@@ -302,11 +300,11 @@ class MAModel(ARMAModel):
 
         # --- LOG: parâmetros MA ---
         print(f"[MAModel] {self.name} - constante (intercepto): {const}")
-        print(f"[MAModel] {self.name} - parâmetros MA: {self.ma_params_}")
+        print(f"[MAModel] {self.name} - parâmetros MA: {self.params_}")
 
         # Checar invertibilidade + obter raízes
         self.is_invertible, roots = self._check_roots_outside_unit_circle(
-            self.ma_params_,
+            self.params_,
             poly_type="ma",
         )
         self.ma_roots_ = roots
